@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Google ML Kit Application"
+rootProject.name = "ImageToTextPathwa"
 include(":app")
  
