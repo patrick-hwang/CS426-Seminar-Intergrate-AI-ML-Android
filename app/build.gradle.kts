@@ -64,6 +64,5 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
-//    implementation("com.google.android.gms:play-services-tflite-java:16.0.1")
-//    implementation("com.google.android.gms:play-services-tflite-support:16.0.1")
+    implementation("androidx.compose.material:material-icons-extended")
 }
