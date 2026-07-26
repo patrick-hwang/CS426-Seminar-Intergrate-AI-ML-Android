@@ -62,6 +62,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -109,7 +110,7 @@ enum class DemoMode {
 }
 
 data class CaptureConfig(
-    val aspectRatio: Float? = null,
+    val aspectRatio: Float = 1f,
 )
 
 private data class MenuItem(
@@ -267,7 +268,8 @@ class MLKitDemonstration {
         title: String,
         onBack: () -> Unit,
         config: CaptureConfig = CaptureConfig(),
-        formatResult: (String) -> String = { it }
+        formatResult: (String) -> String = { it },
+        sortByPosition: Boolean = false
     ) {
         val context = LocalContext.current
         val clipboard = LocalClipboard.current
@@ -311,7 +313,7 @@ class MLKitDemonstration {
                         val inputImage = InputImage.fromBitmap(processedBitmap, 0)
                         recognizer.process(inputImage)
                             .addOnSuccessListener { visionText ->
-                                val raw = visionText.text
+                                val raw = if (sortByPosition) sortTextByPosition(visionText) else visionText.text
                                 recognizedText = if (raw.isBlank()) "No text found!" else formatResult(raw)
                             }
                             .addOnFailureListener { e -> recognizedText = "Error: ${e.message}" }
@@ -337,233 +339,198 @@ class MLKitDemonstration {
             }
         }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            Surface(
-                modifier = Modifier.fillMaxWidth().wrapContentHeight(),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 2.dp
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        Scaffold(
+            topBar = {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 2.dp
                 ) {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Return to ML Kit Menu"
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Return to ML Kit Menu"
+                            )
+                        }
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 12.dp)
                         )
                     }
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 12.dp)
-                    )
                 }
             }
-
-            if (hasCameraPermission) {
-                Box(modifier = Modifier.fillMaxWidth().aspectRatio(4f / 3f)) {
-                    AndroidView(
-                        factory = { ctx ->
-                            val previewView = PreviewView(ctx).apply {
-                                layoutParams = ViewGroup.LayoutParams(
-                                    ViewGroup.LayoutParams.MATCH_PARENT,
-                                    ViewGroup.LayoutParams.MATCH_PARENT
-                                )
-                            }
-                            val executor = ContextCompat.getMainExecutor(ctx)
-                            cameraProviderFuture.addListener({
-                                val provider = cameraProviderFuture.get()
-                                cameraProvider = provider
-                                val preview = Preview.Builder().build().also {
-                                    it.setSurfaceProvider(previewView.surfaceProvider)
+        ) { paddingValues ->
+            Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                if (hasCameraPermission) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        AndroidView(
+                            factory = { ctx ->
+                                val previewView = PreviewView(ctx).apply {
+                                    implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                                 }
-                                try {
-                                    provider.unbindAll()
-                                    provider.bindToLifecycle(
-                                        lifecycleOwner,
-                                        CameraSelector.DEFAULT_BACK_CAMERA,
-                                        preview,
-                                        imageCapture
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e("CameraX", "Error", e)
-                                }
-                            }, executor)
-                            previewView
-                        },
-                        modifier = Modifier.fillMaxWidth().wrapContentHeight()
-                    )
+                                val executor = ContextCompat.getMainExecutor(ctx)
 
-                    val maxContainerW = 1f
-                    val maxContainerH = 1f
-                    val boxFractions = remember(config) {
-                        if (config.aspectRatio != null) {
-                            val r = config.aspectRatio
-                            var w = maxContainerW
-                            var h = w / r
-                            if (h > maxContainerH) {
-                                h = maxContainerH
-                                w = h * r
-                            }
-                            Pair(w, h)
-                        } else {
-                            Pair(maxContainerW, maxContainerH)
-                        }
-                    }
-//                    Canvas(modifier = Modifier.fillMaxWidth().wrapContentHeight()) {
-//                        val w = size.width
-//                        val h = size.height
-//                        val bw = w * boxFractions.first
-//                        val bh = w * boxFractions.second
-//                        drawRect(color = Color.Black.copy(alpha = 0.5f), size = size)
-//                        drawRoundRect(
-//                            color = Color.Transparent,
-//                            topLeft = Offset((w - bw) / 2, (h - bh) / 2),
-//                            size = Size(bw, bh),
-//                            cornerRadius = CornerRadius(16.dp.toPx()),
-//                            blendMode = BlendMode.Clear
-//                        )
-//                    }
+                                cameraProviderFuture.addListener({
+                                    val provider = cameraProviderFuture.get()
+                                    cameraProvider = provider
 
-//                    Box(
-//                        modifier = Modifier
-//                            .fillMaxWidth(boxFractions.first)
-//                            .fillMaxHeight(boxFractions.second)
-//                            .align(Alignment.Center)
-//                            .border(2.dp, Color.Green, RoundedCornerShape(16.dp))
-//                    )
-//
-//                    Row(
-//                        modifier = Modifier
-//                            .align(Alignment.BottomCenter)
-//                            .padding(bottom = 24.dp),
-//                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-//                        verticalAlignment = Alignment.CenterVertically
-//                    ) {
-//                        Button(
-//                            onClick = {
-//                                isProcessing = true
-//                                recognizedText = "Processing image..."
-//                                imageCapture.takePicture(
-//                                    ContextCompat.getMainExecutor(context),
-//                                    object : ImageCapture.OnImageCapturedCallback() {
-//                                        override fun onCaptureSuccess(imageProxy: ImageProxy) {
-//                                            val bitmap = imageProxy.toBitmap()
-//                                            val matrix = Matrix().apply {
-//                                                postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
-//                                            }
-//                                            val rotated = Bitmap.createBitmap(
-//                                                bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
-//                                            )
-//                                            val processed = processImage(rotated)
-//                                            debugBitmap = processed
-//                                            val inputImage = InputImage.fromBitmap(processed, 0)
-//                                            recognizer.process(inputImage)
-//                                                .addOnSuccessListener { visionText ->
-//                                                    val raw = visionText.text
-//                                                    recognizedText = if (raw.isBlank()) "No text found!" else formatResult(raw)
-//                                                }
-//                                                .addOnFailureListener { e ->
-//                                                    recognizedText = "Error: ${e.message}"
-//                                                }
-//                                                .addOnCompleteListener {
-//                                                    isProcessing = false
-//                                                    imageProxy.close()
-//                                                }
-//                                        }
-//
-//                                        override fun onError(e: ImageCaptureException) {
-//                                            isProcessing = false
-//                                            recognizedText = "Capture error: ${e.message}"
-//                                        }
-//                                    }
-//                                )
-//                            },
-//                            enabled = !isProcessing
-//                        ) {
-//                            Text(if (isProcessing) "Processing..." else "Capture")
-//                        }
-//
-//                        OutlinedButton(
-//                            onClick = { galleryLauncher.launch("image/*") },
-//                            enabled = !isProcessing,
-//                            colors = ButtonDefaults.outlinedButtonColors(
-//                                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
-//                            )
-//                        ) {
-//                            Text("Gallery")
-//                        }
-//                    }
-                }
-            }
+                                    val preview = Preview.Builder().build().also {
+                                        it.setSurfaceProvider(previewView.surfaceProvider)
+                                    }
 
-            Surface(
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
+                                    try {
+                                        provider.unbindAll()
+                                        provider.bindToLifecycle(
+                                            lifecycleOwner,
+                                            CameraSelector.DEFAULT_BACK_CAMERA,
+                                            preview,
+                                            imageCapture
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e("CameraX", "Error", e)
+                                    }
+                                }, executor)
+                                previewView
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 24.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Result:",
-                                color = Color.Gray,
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                            IconButton(
+                            Button(
                                 onClick = {
-                                    if (recognizedText.isNotBlank()) {
-                                        scope.launch {
-                                            val clipData = ClipData.newPlainText("OCR Text", recognizedText)
-                                            clipboard.setClipEntry(clipData.toClipEntry())
+                                    isProcessing = true
+                                    recognizedText = "Processing image..."
+                                    imageCapture.takePicture(
+                                        ContextCompat.getMainExecutor(context),
+                                        object : ImageCapture.OnImageCapturedCallback() {
+                                            override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                                                val bitmap = imageProxy.toBitmap()
+                                                val matrix = Matrix().apply {
+                                                    postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+                                                }
+                                                val rotated = Bitmap.createBitmap(
+                                                    bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true
+                                                )
+                                                val processed = processImage(rotated)
+                                                debugBitmap = processed
+                                                val inputImage = InputImage.fromBitmap(processed, 0)
+                                                recognizer.process(inputImage)
+                                                    .addOnSuccessListener { visionText ->
+                                                        val raw = if (sortByPosition) sortTextByPosition(visionText) else visionText.text
+                                                        recognizedText = if (raw.isBlank()) "No text found!" else formatResult(raw)
+                                                    }
+                                                    .addOnFailureListener { e ->
+                                                        recognizedText = "Error: ${e.message}"
+                                                    }
+                                                    .addOnCompleteListener {
+                                                        isProcessing = false
+                                                        imageProxy.close()
+                                                    }
+                                            }
+
+                                            override fun onError(e: ImageCaptureException) {
+                                                isProcessing = false
+                                                recognizedText = "Capture error: ${e.message}"
+                                            }
                                         }
-                                        Toast.makeText(context, "Result copied!", Toast.LENGTH_SHORT).show()
-                                    }
+                                    )
                                 },
-                                modifier = Modifier.size(24.dp)
+                                enabled = !isProcessing
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy",
-                                    tint = MaterialTheme.colorScheme.primary
+                                Text(if (isProcessing) "Processing..." else "Capture")
+                            }
+
+                            OutlinedButton(
+                                onClick = { galleryLauncher.launch("image/*") },
+                                enabled = !isProcessing,
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
                                 )
+                            ) {
+                                Text("Gallery")
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = recognizedText, style = MaterialTheme.typography.bodyLarge)
                     }
+                }
 
-                    if (debugBitmap != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Row(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                         Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.width(120.dp)
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
                         ) {
-                            Text(
-                                "Processed image:",
-                                color = Color.Gray,
-                                style = MaterialTheme.typography.labelSmall
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Result:",
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (recognizedText.isNotBlank()) {
+                                            scope.launch {
+                                                val clipData = ClipData.newPlainText("OCR Text", recognizedText)
+                                                clipboard.setClipEntry(clipData.toClipEntry())
+                                            }
+                                            Toast.makeText(context, "Result copied!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(4.dp))
-                            Image(
-                                bitmap = debugBitmap!!.asImageBitmap(),
-                                contentDescription = "Processed Image",
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .border(1.dp, Color.Gray)
-                            )
+                            Text(text = recognizedText, style = MaterialTheme.typography.bodyLarge)
+                        }
+
+                        if (debugBitmap != null) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.width(120.dp)
+                            ) {
+                                Text(
+                                    "Processed image:",
+                                    color = Color.Gray,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Image(
+                                    bitmap = debugBitmap!!.asImageBitmap(),
+                                    contentDescription = "Processed Image",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .border(1.dp, Color.Gray)
+                                )
+                            }
                         }
                     }
                 }
@@ -586,13 +553,8 @@ class MLKitDemonstration {
             title = "Student Card",
             onBack = onBack,
             config = CaptureConfig(aspectRatio = 4f / 3f),
-            formatResult = { rawText ->
-                buildPlaceholderStructure(
-                    header = "STUDENT CARD",
-                    fields = listOf("School", "Full Name", "Student ID", "DOB", "Faculty"),
-                    rawText = rawText
-                )
-            }
+            sortByPosition = true,
+            formatResult = { rawText -> extractStudentCardInfo(rawText) }
         )
     }
 
@@ -601,29 +563,155 @@ class MLKitDemonstration {
         CaptureScreen(
             title = "HCMC Metro Receipt",
             onBack = onBack,
-            formatResult = { rawText ->
-                buildPlaceholderStructure(
-                    header = "HCMC METRO RECEIPT",
-                    fields = listOf("From Station", "To Station", "Date", "Time", "Price", "Ticket Type"),
-                    rawText = rawText
-                )
-            }
+            sortByPosition = true,
+            formatResult = { rawText -> extractMetroReceiptInfo(rawText) }
         )
     }
 }
 
-private fun buildPlaceholderStructure(
-    header: String,
-    fields: List<String>,
-    rawText: String
-): String {
-    val sb = StringBuilder()
-    sb.appendLine("=== $header ===")
-    fields.forEach { sb.appendLine("$it: [...]") }
-    sb.appendLine()
-    sb.appendLine("--- Raw Text ---")
-    sb.append(rawText)
-    return sb.toString()
+private fun sortTextByPosition(text: Text): String {
+    val lines = text.textBlocks.flatMap { block ->
+        block.lines.map { line ->
+            val box = line.boundingBox
+            val lineText = line.elements.sortedBy { it.boundingBox?.left ?: 0 }
+                .joinToString(" ") { it.text }
+            Triple(lineText, box?.top ?: 0, box?.left ?: 0)
+        }
+    }
+    val sorted = lines.sortedWith(compareBy({ it.second }, { it.third }))
+    return sorted.joinToString("\n") { it.first }
+}
+
+private fun extractStudentCardInfo(rawText: String): String {
+    val lines = rawText.lines()
+
+    var fullName = ""
+    var dob = ""
+    var studentId = ""
+    var faculty = ""
+    var degree = ""
+    var expires = ""
+
+    for (line in lines) {
+        val t = line.trim()
+
+        if (dob.isBlank()) {
+            Regex("""(\d{2}/\d{2}/\d{4})""").find(t)?.let {
+                dob = it.groupValues[1]
+            }
+        }
+
+        if (studentId.isBlank()) {
+            Regex("""MSSV:\s*(.+?)$""").find(t)?.let {
+                studentId = it.groupValues[1].filter { it.isDigit() }
+            }
+            if (studentId.isBlank()) {
+                Regex("""ID:\s*(.+?)$""").find(t)?.let {
+                    studentId = it.groupValues[1].filter { it.isDigit() }
+                }
+            }
+        }
+
+        if (faculty.isBlank()) {
+            Regex("""Khoa\s*:?\s*(.+)$""").find(t)?.let {
+                faculty = it.groupValues[1].trimStart(':').trim()
+            }
+            if (faculty.isBlank()) {
+                Regex("""Faculty\s*(?:of)?\s*:?\s*(.+)$""").find(t)?.let {
+                    faculty = it.groupValues[1].trimStart(':').trim()
+                }
+            }
+        }
+
+        if (degree.isBlank()) {
+            Regex("""Bậc\s*:?\s*(.+)$""").find(t)?.let {
+                degree = it.groupValues[1].trimStart(':').trim()
+            }
+            if (degree.isBlank()) {
+                Regex("""Degree\s*:?\s*(.+)$""").find(t)?.let {
+                    degree = it.groupValues[1].trimStart(':').trim()
+                }
+            }
+            if (degree.isBlank()) {
+                Regex("""(Đại học|Bachelor)""").find(t)?.let {
+                    degree = it.groupValues[1]
+                }
+            }
+        }
+
+        if (expires.isBlank()) {
+            Regex("""(?:H.n\s*th.|Expires)\s*:?\s*(.+)$""").find(t)?.let {
+                expires = it.groupValues[1].trim()
+            }
+        }
+    }
+
+    for (i in lines.indices) {
+        if (lines[i].contains("Ngày sinh") || lines[i].contains("Date of Birth")) {
+            for (j in i - 1 downTo 0) {
+                val candidate = lines[j].trim()
+                if (candidate.isNotBlank() && candidate.length > 3) {
+                    fullName = candidate
+                    break
+                }
+            }
+            break
+        }
+    }
+
+    return buildString {
+        appendLine("Full Name: ${fullName.ifBlank { "[...]" }}")
+        appendLine("Date of Birth: ${dob.ifBlank { "[...]" }}")
+        appendLine("Student ID: ${studentId.ifBlank { "[...]" }}")
+        appendLine("Faculty: ${faculty.ifBlank { "[...]" }}")
+        appendLine("Degree: ${degree.ifBlank { "[...]" }}")
+        appendLine("Expires: ${expires.ifBlank { "[...]" }}")
+    }
+}
+
+private fun extractMetroReceiptInfo(rawText: String): String {
+    var departure = ""
+    var arrival = ""
+    var price = ""
+    var exportTime = ""
+    var boughtAt = ""
+
+    for (line in rawText.lines()) {
+        val t = line.trim()
+
+        if (departure.isBlank() || arrival.isBlank()) {
+            Regex("""(GA .+?)\s*[-–]\s*(GA .+)""").find(t)?.let {
+                departure = it.groupValues[1].trim()
+                arrival = it.groupValues[2].trim()
+            }
+        }
+
+        if (price.isBlank()) {
+            Regex("""Gia ve:\s*(.+?VND)""").find(t)?.let {
+                price = it.groupValues[1].trim()
+            }
+        }
+
+        if (exportTime.isBlank()) {
+            Regex("""Xuat phieu luc:\s*(.+)$""").find(t)?.let {
+                exportTime = it.groupValues[1].trim()
+            }
+        }
+
+        if (boughtAt.isBlank()) {
+            Regex("""Diem ban ve:\s*(.+)$""").find(t)?.let {
+                boughtAt = it.groupValues[1].trim()
+            }
+        }
+    }
+
+    return buildString {
+        appendLine("Departure Station: ${departure.ifBlank { "[...]" }}")
+        appendLine("Arrival Station: ${arrival.ifBlank { "[...]" }}")
+        appendLine("Price: ${price.ifBlank { "[...]" }}")
+        appendLine("Ticket Export Timestamp: ${exportTime.ifBlank { "[...]" }}")
+        appendLine("Ticket Bought At: ${boughtAt.ifBlank { "[...]" }}")
+    }
 }
 
 // ==================================================================
@@ -631,15 +719,9 @@ private fun buildPlaceholderStructure(
 // ==================================================================
 
 fun processImage(original: Bitmap): Bitmap {
-    val cropWidth = (original.width * 0.75f).toInt()
-    val cropHeight = (original.height * 0.6f).toInt()
-    val cropX = (original.width - cropWidth) / 2
-    val cropY = (original.height - cropHeight) / 2
-    val croppedBitmap = Bitmap.createBitmap(original, cropX, cropY, cropWidth, cropHeight)
-
     val enhancedBitmap = Bitmap.createBitmap(
-        croppedBitmap.width, croppedBitmap.height,
-        croppedBitmap.config ?: Bitmap.Config.ARGB_8888
+        original.width, original.height,
+        original.config ?: Bitmap.Config.ARGB_8888
     )
     val canvas = Canvas(enhancedBitmap)
     val paint = Paint()
@@ -656,7 +738,7 @@ fun processImage(original: Bitmap): Bitmap {
     ))
     colorMatrix.postConcat(contrastMatrix)
     paint.colorFilter = ColorMatrixColorFilter(colorMatrix)
-    canvas.drawBitmap(croppedBitmap, 0f, 0f, paint)
+    canvas.drawBitmap(original, 0f, 0f, paint)
     return enhancedBitmap
 }
 
