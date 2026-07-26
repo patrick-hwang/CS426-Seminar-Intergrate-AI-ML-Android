@@ -124,9 +124,12 @@ class MLKitDemonstration {
     private var currentMode by mutableStateOf<DemoMode?>(null)
 
     @Composable
-    fun DemonstrationMenu() {
+    fun DemonstrationMenu(onExit: () -> Unit) {
         when (currentMode) {
-            null -> MenuContent { mode -> currentMode = mode }
+            null -> MenuContent(
+                onModeSelected = { mode -> currentMode = mode },
+                onBack = onExit
+            )
             DemoMode.RAW_STRING -> RawStringScreen { currentMode = null }
             DemoMode.STUDENT_CARD -> StudentCardScreen { currentMode = null }
             DemoMode.METRO_RECEIPT -> MetroReceiptScreen { currentMode = null }
@@ -134,7 +137,10 @@ class MLKitDemonstration {
     }
 
     @Composable
-    private fun MenuContent(onModeSelected: (DemoMode) -> Unit) {
+    private fun MenuContent(
+        onModeSelected: (DemoMode) -> Unit,
+        onBack: () -> Unit
+    ) {
         val items = remember {
             listOf(
                 MenuItem(
@@ -158,13 +164,39 @@ class MLKitDemonstration {
             )
         }
 
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
-        ) {
+        Scaffold(
+            topBar = {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 2.dp
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                        Text(
+                            text = "ML Kit Demo",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(start = 12.dp)
+                        )
+                    }
+                }
+            }
+        ) { paddingValues ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .padding(paddingValues)
                     .padding(horizontal = 20.dp)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
