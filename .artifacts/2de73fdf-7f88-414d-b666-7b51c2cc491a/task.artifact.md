@@ -1,0 +1,8 @@
+- [x] Research project structure and assets
+- [x] Add TFLite dependencies to `build.gradle.kts`
+- [x] Implement `TransactionClassifier` helper class
+- [x] Design and implement `TFLiteDemonstration` UI
+- [x] Integrate classifier with the UI
+- [x] Verify build and basic functionality
+- [x] Enable and optimize Vietnamese input support
+- [x] Create walkthrough for the user
