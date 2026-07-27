@@ -5,4 +5,6 @@
 - [x] Integrate classifier with the UI
 - [x] Verify build and basic functionality
 - [x] Enable and optimize Vietnamese input support
-- [x] Create walkthrough for the user
+- [x] Sync preprocessing logic with Python notebook (Regex & Padding)
+- [x] Implement 0.35 confidence threshold for "Khác" category
+- [x] Create final walkthrough for the user

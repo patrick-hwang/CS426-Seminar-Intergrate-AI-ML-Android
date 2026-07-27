@@ -47,7 +47,7 @@ class TransactionClassifier(context: Context) {
     fun classify(text: String): ClassificationResult {
         val tokens = tokenize(text)
         val input = IntArray(inputLength) { i ->
-            if (i < tokens.size) tokens[i] else 0 // Padding with 0
+            if (i < tokens.size) tokens[i] else 0 // Padding with 0 (Post-padding)
         }
 
         // Output shape is [1][num_labels]
@@ -67,7 +67,13 @@ class TransactionClassifier(context: Context) {
             }
         }
 
-        val resultLabel = if (maxIndex < labels.size) labels[maxIndex] else "Unknown"
+        // Use 0.35 threshold as in Python notebook
+        val resultLabel = if (maxConfidence > 0.35f) {
+            if (maxIndex < labels.size) labels[maxIndex] else "Khác"
+        } else {
+            "Khác"
+        }
+        
         return ClassificationResult(resultLabel, maxConfidence)
     }
 
@@ -75,8 +81,11 @@ class TransactionClassifier(context: Context) {
         // Normalize to NFC to ensure consistency with vocab.json
         val normalizedText = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFC)
         
+        // Exact regex from Python training notebook
+        val vietnameseRegex = Regex("[^a-z0-9àáâãèéêìíòóôõùúăđĩũơưăạảấầẩẫậắằẳẵặẹẻẽềềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ\\s]")
+        
         val words = normalizedText.lowercase()
-            .replace(Regex("[^\\p{L}\\p{N}\\s]"), "") // Remove punctuation, keep Unicode letters/numbers
+            .replace(vietnameseRegex, " ") // Replace with space like in Python re.sub
             .split(Regex("\\s+"))
             .filter { it.isNotBlank() }
 
