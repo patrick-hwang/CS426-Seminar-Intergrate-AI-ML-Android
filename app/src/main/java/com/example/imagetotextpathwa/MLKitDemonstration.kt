@@ -575,7 +575,8 @@ class MLKitDemonstration {
         CaptureScreen(
             title = "Extract Raw Text",
             onBack = onBack,
-            formatResult = { it }
+            formatResult = { it },
+            sortByPosition = true
         )
     }
 
@@ -628,8 +629,8 @@ private fun extractStudentCardInfo(rawText: String): String {
         val t = line.trim()
 
         if (dob.isBlank()) {
-            Regex("""(\d{2}/\d{2}/\d{4})""").find(t)?.let {
-                dob = it.groupValues[1]
+            Regex("""([0-9oO]{2}/[0-9oO]{2}/[0-9oO]{4})""").find(t)?.let {
+                dob = it.groupValues[1].replace('O', '0').replace('o', '0')
             }
         }
 
@@ -650,7 +651,10 @@ private fun extractStudentCardInfo(rawText: String): String {
             }
             if (faculty.isBlank()) {
                 Regex("""Faculty\s*(?:of)?\s*:?\s*(.+)$""").find(t)?.let {
-                    faculty = it.groupValues[1].trimStart(':').trim()
+                    val value = it.groupValues[1].trimStart(':').trim()
+                    if (value.isNotBlank() && !value.equals("of", ignoreCase = true)) {
+                        faculty = value
+                    }
                 }
             }
         }
@@ -672,8 +676,40 @@ private fun extractStudentCardInfo(rawText: String): String {
         }
 
         if (expires.isBlank()) {
-            Regex("""(?:H.n\s*th.|Expires)\s*:?\s*(.+)$""").find(t)?.let {
+            Regex("""(?:[MmWwHhLl1I].n\s*th.|Expires)\s*:?\s*(.+)$""").find(t)?.let {
                 expires = it.groupValues[1].trim()
+            }
+        }
+    }
+
+    if (expires.isBlank()) {
+        Regex("""(\d{4}\s*[-–]\s*\d{4})""").find(rawText)?.let {
+            expires = it.groupValues[1].trim()
+        }
+    }
+
+    if (faculty.isBlank()) {
+        for (i in lines.indices) {
+            val trimmed = lines[i].trim()
+            val isFacultyLabel = trimmed.equals("Khoa", ignoreCase = true) ||
+                Regex("""^Faculty[\s:]*(?:of)?$""", RegexOption.IGNORE_CASE).matches(trimmed)
+            if (isFacultyLabel) {
+                val knownValueLabels = listOf("Ngày sinh", "Date of Birth", "MSSV", "ID", "Bậc", "Degree", "Khoa", "Faculty", "Hạn thẻ", "Expires")
+                for (j in i + 1 until lines.size) {
+                    val next = lines[j].trim().trimStart(':').trim()
+                    if (next.isNotBlank() && knownValueLabels.none { next.contains(it, ignoreCase = true) } && next != "Đại học" && next != "Bachelor") {
+                        faculty = next
+                        break
+                    }
+                }
+                if (faculty.isNotBlank()) break
+                if (i > 0) {
+                    val before = lines[i - 1].trim().trimStart(':').trim()
+                    if (before.isNotBlank() && knownValueLabels.none { before.contains(it, ignoreCase = true) }) {
+                        faculty = before
+                        break
+                    }
+                }
             }
         }
     }
@@ -682,6 +718,9 @@ private fun extractStudentCardInfo(rawText: String): String {
         if (lines[i].contains("Ngày sinh") || lines[i].contains("Date of Birth")) {
             for (j in i - 1 downTo 0) {
                 val candidate = lines[j].trim()
+                val nameSkipLabels = listOf("MSSV:", "ID:", "Faculty", "Khoa", "Degree", "Bậc", "Expires", "Hạn thẻ", "Date of Birth", "Ngày sinh")
+                if (nameSkipLabels.any { candidate.contains(it, ignoreCase = true) }) continue
+                if (Regex("""^[\p{Lu}]{2,8}([-/][\p{Lu}]{2,8})*$""").matches(candidate)) continue
                 if (candidate.isNotBlank() && candidate.length > 3) {
                     fullName = candidate
                     break
